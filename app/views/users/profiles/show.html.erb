@@ -136,6 +136,16 @@
           <%= render "users/email_subscriptions/email_subscription" %>
         </span>
       </li>
+
+      <li class="flex align-center gap margin-none min-width membership-item" data-controller="theme-toggle">
+        Theme
+
+        <hr class="separator" aria-hidden="true">
+
+        <button type="button" class="btn txt-small" data-action="theme-toggle#toggle">
+          <span data-theme-toggle-target="label">System</span>
+        </button>
+      </li>
     </menu>
   </div>
 
