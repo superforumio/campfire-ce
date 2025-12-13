@@ -6,6 +6,9 @@
 # Or shortcut: Branding.app_name
 
 Rails.application.configure do
+  # Initialize the branding namespace explicitly
+  config.x.branding = ActiveSupport::OrderedOptions.new
+
   config.x.branding.app_name = ENV.fetch("APP_NAME", "Campfire Community Edition")
   config.x.branding.app_short_name = ENV.fetch("APP_SHORT_NAME") { config.x.branding.app_name }
   config.x.branding.support_email = ENV.fetch("SUPPORT_EMAIL", "support@example.com")
