@@ -70,6 +70,9 @@ Rails.application.configure do
   # Only use :id for inspections in production.
   config.active_record.attributes_for_inspect = [ :id ]
 
+  # AnyCable WebSocket URL (used by action_cable_meta_tag)
+  config.action_cable.url = "wss://#{ENV.fetch('APP_HOST', 'localhost')}/cable"
+
   # Enable DNS rebinding protection and other `Host` header attacks.
   # config.hosts = [
   #   "example.com",     # Allow requests from example.com

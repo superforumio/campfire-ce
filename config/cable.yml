@@ -3,8 +3,7 @@ default: &default
   url: redis://localhost:6379
 
 development:
-  <<: *default
-  channel_prefix: campfire_development
+  adapter: any_cable
 
 test:
   adapter: test
@@ -14,5 +13,4 @@ performance:
   channel_prefix: campfire_performance
 
 production:
-  <<: *default
-  channel_prefix: campfire_production
+  adapter: any_cable

@@ -67,6 +67,9 @@ Rails.application.configure do
   # Uncomment if you wish to allow Action Cable access from any origin.
   # config.action_cable.disable_request_forgery_protection = true
 
+  # AnyCable WebSocket URL (used by action_cable_meta_tag)
+  config.action_cable.url = "ws://localhost:8080/cable"
+
   # Uncomment to test with production class job queue
   # config.active_job.queue_adapter = :solid_queue
 
