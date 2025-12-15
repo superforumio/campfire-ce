@@ -38,6 +38,9 @@ class ActiveSupport::TestCase
     ENV["COOKIE_DOMAIN"] = nil
 
     WebMock.disable_net_connect!
+
+    # Stub AnyCable HTTP broadcast endpoint
+    stub_request(:post, "http://localhost:8080/_broadcast").to_return(status: 200, body: "", headers: {})
   end
 
   teardown do
