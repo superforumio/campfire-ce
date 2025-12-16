@@ -1,32 +1,4 @@
 #!/usr/bin/env ruby
-#
-# Load testing script for Campfire WebSocket performance
-#
-# Usage:
-#   bin/load [options]
-#
-# Examples:
-#   # Test Action Cable locally (1000 users)
-#   bin/load
-#
-#   # Test Action Cable on remote server
-#   bin/load -h server.example.com -u 500
-#
-#   # Test AnyCable on remote server
-#   bin/load -h server.example.com -u 500 --anycable
-#
-#   # Skip setup (reuse existing containers)
-#   bin/load -h server.example.com -u 500 -S
-#
-# Options:
-#   -u, --users USERS      Number of concurrent users (default: 1000)
-#   -h, --host HOST        Server to run on (default: localhost)
-#   -p, --port PORT        Application port (default: 80 remote, 3000 local)
-#   -i, --image IMAGE      Docker image to use
-#   -a, --anycable         Use AnyCable mode (runs anycable-go container)
-#   -S, --skip-setup       Skip Docker setup (pull images, upload files)
-#   --ssh-user USER        SSH user for remote hosts (default: ubuntu)
-#
 require "bundler/inline"
 
 gemfile do
@@ -45,20 +17,15 @@ class Load
   include SSHKit::DSL
 
   attr_reader :users, :setup, :host, :port, :ssh_user
-  attr_reader :campfire_image, :anycable
+  attr_reader :campfire_image
 
-  def initialize(users: 1000, setup: true, host: "localhost", port: nil, ssh_user: "ubuntu", image: nil, anycable: false)
+  def initialize(users: 1000, setup: true, host: "localhost", port: nil, ssh_user: "ubuntu")
     @users = users
     @setup = setup
     @host = host
     @ssh_user = ssh_user
-    @anycable = anycable
     @port = port || (remote? ? 80 : 3000)
-    @campfire_image = image || (anycable ? "ghcr.io/superforumio/campfire-ce:anycable" : "ghcr.io/superforumio/campfire-ce:latest")
-  end
-
-  def anycable?
-    @anycable
+    @campfire_image = "localhost/campfire:latest"
   end
 
   def setup?
@@ -97,60 +64,44 @@ class Load
     def run_setup
       puts "Running setup..."
       load = self
+      os, arch = host_os_and_arch
 
-      on(ssh_host) do |host|
-        unless execute(:docker, "-v", raise_on_non_zero_exit: false)
-          execute :curl, "-fsSL", "https://get.docker.com", "|", :sh
+      on(:local) do
+        execute :docker, :build, "-t", load.campfire_image, "--platform", arch, "."
+        if load.remote?
+          execute :docker, :save, "-o", "tmp/campfire-image.tar", load.campfire_image
         end
-        execute :docker, :pull, load.campfire_image
-        execute :docker, :pull, "anycable/anycable-go:1.6" if load.anycable?
-        unless host.local?
+      end
+
+      if remote?
+        on(ssh_host) do
+          unless execute(:docker, "-v", raise_on_non_zero_exit: false)
+            execute :curl, "-fsSL", "https://get.docker.com", "|", :sh
+          end
+          upload! "tmp/campfire-image.tar", "campfire-image.tar"
           upload! "test/performance/chatter.js", "chatter.js"
           upload! "test/performance/cookies.txt", "cookies.txt"
+          execute :docker, :load, "-i", "campfire-image.tar"
         end
       end
     end
 
+    def host_os_and_arch
+      os = arch = nil
+      on(ssh_host) do
+        os = capture("uname -s").strip
+        arch = capture("uname -m").strip == "x86_64" ? "linux/amd64" : "linux/arm64"
+      end
+      [os, arch]
+    end
+
     def start_app
-      puts "Starting app on #{host}#{anycable? ? ' (AnyCable mode)' : ''}..."
+      puts "Starting app on #{host}..."
       load = self
 
       on(ssh_host) do
-        execute :docker, :rm, "-f", :campfire_load, :campfire_anycable, raise_on_non_zero_exit: false
-        execute :docker, :network, :rm, :campfire_net, raise_on_non_zero_exit: false
-
-        if load.anycable?
-          # Create network for container communication
-          execute :docker, :network, :create, :campfire_net
-
-          # Start Rails app (internal only, anycable-go will proxy)
-          execute :docker, :run, "-d", "--rm",
-            "--name", :campfire_load,
-            "--network", :campfire_net,
-            "--network-alias", :web,
-            "-e", "SECRET_KEY_BASE=dummy",
-            "-e", "RAILS_ENV=performance",
-            "-e", "CABLE_ADAPTER=any_cable",
-            "-e", "ANYCABLE_SECRET=test-secret",
-            load.campfire_image
-
-          # Start anycable-go (exposed to host)
-          execute :docker, :run, "-d", "--rm",
-            "--name", :campfire_anycable,
-            "--network", :campfire_net,
-            "--network-alias", :anycable,
-            "-p", "#{load.port}:8080",
-            "-e", "ANYCABLE_HOST=0.0.0.0",
-            "-e", "ANYCABLE_PORT=8080",
-            "-e", "ANYCABLE_RPC_HOST=http://web:3000/_anycable",
-            "-e", "ANYCABLE_BROADCAST_ADAPTER=http",
-            "-e", "ANYCABLE_HTTP_BROADCAST_PORT=8080",
-            "-e", "ANYCABLE_SECRET=test-secret",
-            "-e", "ANYCABLE_LOG_LEVEL=info",
-            "anycable/anycable-go:1.6"
-        else
-          execute :docker, :run, "-d", "--rm", "--name", :campfire_load, "-p", "#{load.port}:80", "-e", "SECRET_KEY_BASE=dummy", "-e", "RAILS_ENV=performance", load.campfire_image
-        end
+        execute :docker, :rm, "-f", :campfire_load, raise_on_non_zero_exit: false
+        execute :docker, :run, "-d", "--rm", "--name", :campfire_load, "-p", "#{load.port}:80", "-e", "SECRET_KEY_BASE=dummy", "-e RAILS_ENV=performance", load.campfire_image
       end
 
       wait_for_app_to_start
@@ -158,9 +109,7 @@ class Load
 
     def wait_for_app_to_start
       timeout_at = Time.now + 60
-      # For AnyCable, check health endpoint; for Action Cable, check root
-      path = anycable? ? "/health" : "/"
-      uri = URI("http://#{host}:#{port}#{path}")
+      uri = URI("http://#{host}:#{port}")
       loop do
         sleep 1
         puts "Waiting for app to start..."
@@ -201,10 +150,8 @@ class Load
     end
 
     def cleanup
-      load = self
       on(ssh_host) do |host|
-        execute :docker, :rm, "-f", :campfire_load, :campfire_anycable, :k6, raise_on_non_zero_exit: false
-        execute :docker, :network, :rm, :campfire_net, raise_on_non_zero_exit: false if load.anycable?
+        execute :docker, :rm, "-f", :campfire_load, :k6
       end
     end
 end
@@ -230,16 +177,8 @@ OptionParser.new do |opts|
     options[:ssh_user] = ssh_user
   end
 
-  opts.on("-p", "--port PORT", "Application port") do |port|
+  opts.on("-p", "--port PORT", "Application port ") do |port|
     options[:port] = port
-  end
-
-  opts.on("-i", "--image IMAGE", "Docker image to use") do |image|
-    options[:image] = image
-  end
-
-  opts.on("-a", "--anycable", "Run with AnyCable (uses anycable-go container)") do
-    options[:anycable] = true
   end
 
   opts.on("--help", "Prints this message") do

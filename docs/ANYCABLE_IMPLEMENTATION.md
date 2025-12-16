@@ -4,17 +4,41 @@ This document outlines the plan to add AnyCable support to campfire-ce for impro
 
 ## Problem
 
-Rails Action Cable has significant scalability limitations for real-time chat applications:
-
-| Metric | Action Cable | AnyCable |
-|--------|-------------|----------|
-| Concurrent connections | ~200 before crashes | 52,000+ |
-| Memory per connection | 3.1MB | 0.2MB |
-| P95 latency | 840ms | 62ms |
-| Message loss under load | 17% | 0% |
-| Recovery time | 8+ seconds | 1.4 seconds |
+Rails Action Cable has significant scalability limitations for real-time chat applications.
 
 Reference: https://github.com/antiwork/smallbets/issues/97
+
+## Load Test Results
+
+Load tests conducted on a 1 vCPU / 2GB DigitalOcean droplet with 500 concurrent users:
+
+| Metric | Action Cable | AnyCable | Improvement |
+|--------|-------------|----------|-------------|
+| **WebSocket connect time (avg)** | 7.33s | 43.82ms | **167x faster** |
+| **Messages received** | 7,133 | 17,553 | **2.5x more** |
+| **Messages/second** | 358/s | 714/s | **2x throughput** |
+| **Subscriptions confirmed** | 3,000 | 3,000 | Same |
+| **Data received** | 154 MB | 379 MB | 2.5x |
+
+### Test Configuration
+
+- **Server**: DigitalOcean 1 vCPU / 2GB RAM (ubuntu-s-1vcpu-2gb)
+- **Users**: 500 concurrent WebSocket connections
+- **Channels per user**: 6 (PresenceChannel, UnreadRoomsChannel, HeartbeatChannel, 3x Turbo::StreamsChannel)
+- **Test duration**: 60 seconds
+- **Tool**: k6 with custom chatter.js script
+
+### Running Load Tests
+
+```bash
+# Test Action Cable
+bin/load-anycable -h server.example.com --ssh-user root -u 500
+
+# Test AnyCable
+bin/load-anycable -h server.example.com --ssh-user root -u 500 --anycable
+```
+
+See `bin/load-anycable --help` for all options
 
 ## Solution: HTTP RPC Mode
 
