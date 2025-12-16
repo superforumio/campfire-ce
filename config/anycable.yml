@@ -15,6 +15,11 @@ test:
   <<: *default
   secret: "test-secret"
 
+performance:
+  <<: *default
+  http_broadcast_url: "http://anycable:8080/_broadcast"
+  secret: "test-secret"
+
 production:
   <<: *default
   websocket_url: <%= "wss://#{ENV['APP_HOST']}/cable" %>
