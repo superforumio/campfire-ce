@@ -9,7 +9,8 @@ test:
   adapter: test
 
 performance:
-  <<: *default
+  adapter: <%= ENV.fetch("CABLE_ADAPTER", "redis") %>
+  url: redis://localhost:6379
   channel_prefix: campfire_performance
 
 production:
