@@ -275,13 +275,96 @@ bin/rails test:system
 
 ---
 
+## Standalone Deployment
+
+By default, campfire-ce uses **AnyCable** for WebSocket connections in production. This requires:
+
+1. **anycable-go container** running alongside the Rails app
+2. **Proxy routing** to send `/cable` requests to anycable-go
+3. **ANYCABLE_SECRET** environment variable set in both containers
+
+### Kamal Deployment
+
+The included `config/deploy.yml` sets up AnyCable with a WebSocket subdomain.
+See the [AnyCable Kamal Guide](https://github.com/anycable/docs.anycable.io/blob/master/docs/deployment/kamal.md) for detailed configuration options.
+
+1. **Add DNS record**: Point `ws.yourdomain.com` to your server IP
+2. **Set secrets** in `.kamal/secrets`:
+   ```bash
+   ANYCABLE_SECRET=your-random-secret-here
+   ```
+3. **Deploy**: `kamal setup` will deploy both web and anycable containers
+
+Clients connect to `wss://ws.yourdomain.com/cable` for WebSocket.
+
+### campfire_cloud Deployment
+
+campfire_cloud uses Caddy for path-based routing (`/cable` → anycable). Set these environment variables:
+
+```bash
+ANYCABLE_WEBSOCKET_URL=wss://yourdomain.com/cable
+ANYCABLE_BROADCAST_URL=http://anycable:8080/_broadcast
+```
+
+### Docker Compose Example
+
+```yaml
+services:
+  web:
+    image: ghcr.io/superforumio/campfire-ce:latest
+    environment:
+      - CABLE_ADAPTER=any_cable
+      - ANYCABLE_SECRET=${ANYCABLE_SECRET}
+    networks:
+      - campfire
+
+  anycable:
+    image: anycable/anycable-go:1.6
+    environment:
+      - ANYCABLE_HOST=0.0.0.0
+      - ANYCABLE_PORT=8080
+      - ANYCABLE_RPC_HOST=http://web:3000/_anycable
+      - ANYCABLE_BROADCAST_ADAPTER=http
+      - ANYCABLE_HTTP_BROADCAST_PORT=8080
+      - ANYCABLE_SECRET=${ANYCABLE_SECRET}
+    networks:
+      - campfire
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+    networks:
+      - campfire
+
+networks:
+  campfire:
+```
+
+**Caddyfile:**
+```
+example.com {
+    handle /cable {
+        reverse_proxy anycable:8080
+    }
+    handle {
+        reverse_proxy web:3000
+    }
+}
+```
+
+---
+
 ## Configuration Reference
 
 ### Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `ANYCABLE_SECRET` | Shared secret for auth and signing | Generated |
+| `ANYCABLE_SECRET` | Shared secret for auth and signing (required) | - |
 | `ANYCABLE_LOG_LEVEL` | Log verbosity (debug/info/warn/error) | info |
 
 ### AnyCable-Go Settings
@@ -341,6 +424,5 @@ environment:
 
 - [AnyCable Documentation](https://docs.anycable.io/)
 - [AnyCable Rails Guide](https://docs.anycable.io/rails/getting_started)
-- [AnyCable Kamal Deployment](https://docs.anycable.io/deployment/kamal)
+- [AnyCable Kamal Deployment](https://github.com/anycable/docs.anycable.io/blob/master/docs/deployment/kamal.md)
 - [HTTP RPC Documentation](https://docs.anycable.io/ruby/http_rpc)
-- [GitHub Issue #97](https://github.com/antiwork/smallbets/issues/97)

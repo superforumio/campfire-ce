@@ -22,6 +22,10 @@ performance:
 
 production:
   <<: *default
-  websocket_url: <%= "wss://#{ENV['APP_HOST']}/cable" %>
-  http_broadcast_url: "http://anycable:8080/_broadcast"
+  # WebSocket URL for clients (uses ws. subdomain for Kamal, /cable path for campfire_cloud)
+  websocket_url: <%= ENV.fetch("ANYCABLE_WEBSOCKET_URL", "wss://ws.#{ENV['APP_HOST']}/cable") %>
+  # Broadcast URL - container name varies by deployment:
+  # - Kamal: campfire-anycable
+  # - campfire_cloud/Docker Compose: anycable
+  http_broadcast_url: <%= ENV.fetch("ANYCABLE_BROADCAST_URL", "http://campfire-anycable:8080/_broadcast") %>
   secret: <%= ENV["ANYCABLE_SECRET"] %>
