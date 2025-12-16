@@ -3,20 +3,17 @@
 # Load testing script for Campfire WebSocket performance
 #
 # Usage:
-#   bin/load [options]
+#   bin/load-anycable [options]
 #
 # Examples:
-#   # Test Action Cable locally (1000 users)
-#   bin/load
-#
 #   # Test Action Cable on remote server
-#   bin/load -h server.example.com -u 500
+#   bin/load-anycable -h server.example.com -u 500
 #
 #   # Test AnyCable on remote server
-#   bin/load -h server.example.com -u 500 --anycable
+#   bin/load-anycable -h server.example.com -u 500 --anycable
 #
 #   # Skip setup (reuse existing containers)
-#   bin/load -h server.example.com -u 500 -S
+#   bin/load-anycable -h server.example.com -u 500 -S
 #
 # Options:
 #   -u, --users USERS      Number of concurrent users (default: 1000)
@@ -26,6 +23,24 @@
 #   -a, --anycable         Use AnyCable mode (runs anycable-go container)
 #   -S, --skip-setup       Skip Docker setup (pull images, upload files)
 #   --ssh-user USER        SSH user for remote hosts (default: ubuntu)
+#
+# Test Behavior:
+#   The test runs for ~70 seconds and simulates realistic chat room usage:
+#
+#   1. Socket Connections (60 seconds)
+#      - Creates N concurrent WebSocket connections
+#      - Ramps up at ~N/3 connections/second
+#      - Each connection subscribes to 6 channels:
+#        - PresenceChannel (who's online in the room)
+#        - UnreadRoomsChannel (unread message counts)
+#        - HeartbeatChannel (keep-alive pings)
+#        - 3x Turbo::StreamsChannel (room list, messages, user rooms)
+#
+#   2. Message Broadcasting (starts at 30s)
+#      - One user sends 100 messages to Room 1
+#      - All connected clients receive the broadcasts
+#
+#   Results show subscriptions/second and messages/second throughput.
 #
 require "bundler/inline"
 
