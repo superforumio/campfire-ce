@@ -144,13 +144,17 @@ class Load
         execute :docker, :pull, load.campfire_image
         execute :docker, :pull, "anycable/anycable-go:1.6" if load.anycable?
         execute :docker, :pull, "caddy:2-alpine"
-        unless host.local?
-          execute :mkdir, "-p", "/tmp/campfire-load"
+        execute :mkdir, "-p", "/tmp/campfire-load"
+        if host.local?
+          execute :cp, "test/performance/chatter.js", "/tmp/campfire-load/chatter.js"
+          execute :cp, "test/performance/cookies.txt", "/tmp/campfire-load/cookies.txt"
+          execute :cp, "tmp/Caddyfile", "/tmp/campfire-load/Caddyfile"
+        else
           upload! "test/performance/chatter.js", "/tmp/campfire-load/chatter.js"
           upload! "test/performance/cookies.txt", "/tmp/campfire-load/cookies.txt"
           upload! "tmp/Caddyfile", "/tmp/campfire-load/Caddyfile"
-          execute :chmod, "-R", "755", "/tmp/campfire-load"
         end
+        execute :chmod, "-R", "755", "/tmp/campfire-load"
       end
     end
 
