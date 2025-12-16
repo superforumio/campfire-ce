@@ -426,3 +426,4 @@ environment:
 - [AnyCable Rails Guide](https://docs.anycable.io/rails/getting_started)
 - [AnyCable Kamal Deployment](https://github.com/anycable/docs.anycable.io/blob/master/docs/deployment/kamal.md)
 - [HTTP RPC Documentation](https://docs.anycable.io/ruby/http_rpc)
+- [Real-time Stress: AnyCable, k6, WebSockets](https://evilmartians.com/chronicles/real-time-stress-anycable-k6-websockets-and-yabeda) - Load testing guide with xk6-cable
