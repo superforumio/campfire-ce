@@ -6,14 +6,14 @@
 #   bin/load-anycable [options]
 #
 # Examples:
-#   # Test Action Cable on remote server
-#   bin/load-anycable -h server.example.com -u 500
+#   # Test Action Cable on remote server (500 users)
+#   bin/load-anycable -h server.example.com --ssh-user root -u 500
 #
-#   # Test AnyCable on remote server
-#   bin/load-anycable -h server.example.com -u 500 --anycable
+#   # Test AnyCable on remote server (500 users)
+#   bin/load-anycable -h server.example.com --ssh-user root -u 500 --anycable
 #
-#   # Skip setup (reuse existing containers)
-#   bin/load-anycable -h server.example.com -u 500 -S
+#   # Test AnyCable with 1000 users, skip setup (reuse existing containers)
+#   bin/load-anycable -h server.example.com --ssh-user root -u 1000 -S --anycable
 #
 # Options:
 #   -u, --users USERS      Number of concurrent users (default: 1000)
