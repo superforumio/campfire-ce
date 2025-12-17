@@ -54,7 +54,7 @@ env:
     - BACKGROUND_COLOR
     - ANALYTICS_DOMAIN
     - CSP_FRAME_ANCESTORS
-    - ANYCABLE_ENABLED
+    - DISABLE_ANYCABLE
     - ANYCABLE_SECRET
 
 volumes:
@@ -64,7 +64,7 @@ volumes:
 # Routes /cable path to AnyCable on the same domain
 #
 # To disable AnyCable and use standard ActionCable:
-# 1. Set ANYCABLE_ENABLED=false in your secrets
+# 1. Set DISABLE_ANYCABLE=true in your secrets
 # 2. Comment out the 'anycable' accessory below
 # 3. Redeploy: kamal deploy
 accessories:
