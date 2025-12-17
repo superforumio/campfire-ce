@@ -56,7 +56,6 @@ env:
     - CSP_FRAME_ANCESTORS
     - ANYCABLE_ENABLED
     - ANYCABLE_SECRET
-    - ANYCABLE_WEBSOCKET_URL
 
 volumes:
   - "/disk/campfire/:/rails/storage/"
