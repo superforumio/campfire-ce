@@ -28,7 +28,10 @@ class PresenceChannel < RoomChannel
       # In AnyCable HTTP RPC mode, @room isn't preserved between calls.
       # Look it up from params if needed.
       @room ||= current_user.rooms.find_by(id: params[:room_id])
-      return nil unless @room
+      unless @room
+        Rails.logger.debug { "PresenceChannel: room not found for user #{current_user.id}, params: #{params.to_unsafe_h}" }
+        return nil
+      end
 
       @room.memberships.find_by(user: current_user)
     end
