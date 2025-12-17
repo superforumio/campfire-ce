@@ -3,8 +3,8 @@ default: &default
   url: redis://localhost:6379
 
 development:
-  adapter: <%= ENV.fetch("ANYCABLE_ENABLED", "true") == "true" ? "any_cable" : "redis" %>
-  <% if ENV.fetch("ANYCABLE_ENABLED", "true") != "true" %>
+  adapter: <%= ENV["DISABLE_ANYCABLE"] == "true" ? "redis" : "any_cable" %>
+  <% if ENV["DISABLE_ANYCABLE"] == "true" %>
   url: redis://localhost:6379
   channel_prefix: campfire_development
   <% end %>
@@ -18,8 +18,8 @@ performance:
   channel_prefix: campfire_performance
 
 production:
-  adapter: <%= ENV.fetch("ANYCABLE_ENABLED", "true") == "true" ? "any_cable" : "redis" %>
-  <% if ENV.fetch("ANYCABLE_ENABLED", "true") != "true" %>
+  adapter: <%= ENV["DISABLE_ANYCABLE"] == "true" ? "redis" : "any_cable" %>
+  <% if ENV["DISABLE_ANYCABLE"] == "true" %>
   url: <%= ENV.fetch("REDIS_URL", "redis://localhost:6379") %>
   channel_prefix: campfire_production
   <% end %>
