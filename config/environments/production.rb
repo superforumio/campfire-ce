@@ -74,12 +74,10 @@ Rails.application.configure do
   # Both AnyCable and ActionCable use the same /cable path on the main domain
   config.action_cable.url = ENV.fetch("ANYCABLE_WEBSOCKET_URL", "wss://#{ENV.fetch('APP_HOST', 'localhost')}/cable")
 
-  # Enable DNS rebinding protection and other `Host` header attacks.
-  # config.hosts = [
-  #   "example.com",     # Allow requests from example.com
-  #   /.*\.example\.com/ # Allow requests from subdomains like `www.example.com`
-  # ]
-  #
-  # Skip DNS rebinding protection for the default health check endpoint.
-  # config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
+  # Skip host authorization for health checks and internal RPC endpoints.
+  # Health checks use Docker container IDs as hostnames.
+  # AnyCable RPC uses Docker network aliases (campfire-web).
+  config.host_authorization = {
+    exclude: ->(request) { request.path.in?([ "/up", "/_anycable" ]) }
+  }
 end
