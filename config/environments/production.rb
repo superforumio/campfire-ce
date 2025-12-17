@@ -70,8 +70,9 @@ Rails.application.configure do
   # Only use :id for inspections in production.
   config.active_record.attributes_for_inspect = [ :id ]
 
-  # AnyCable WebSocket URL (used by action_cable_meta_tag)
-  config.action_cable.url = "wss://#{ENV.fetch('APP_HOST', 'localhost')}/cable"
+  # WebSocket URL (used by action_cable_meta_tag)
+  # Both AnyCable and ActionCable use the same /cable path on the main domain
+  config.action_cable.url = ENV.fetch("ANYCABLE_WEBSOCKET_URL", "wss://#{ENV.fetch('APP_HOST', 'localhost')}/cable")
 
   # Enable DNS rebinding protection and other `Host` header attacks.
   # config.hosts = [
@@ -80,5 +81,5 @@ Rails.application.configure do
   # ]
   #
   # Skip DNS rebinding protection for the default health check endpoint.
-  # config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
+  config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
 end

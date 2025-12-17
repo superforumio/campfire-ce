@@ -3,7 +3,7 @@ default: &default
   url: redis://localhost:6379
 
 development:
-  adapter: any_cable
+  adapter: <%= ENV.fetch("ANYCABLE_ENABLED", "true") == "true" ? "any_cable" : "redis" %>
 
 test:
   adapter: test
@@ -14,4 +14,4 @@ performance:
   channel_prefix: campfire_performance
 
 production:
-  adapter: any_cable
+  adapter: <%= ENV.fetch("ANYCABLE_ENABLED", "true") == "true" ? "any_cable" : "redis" %>

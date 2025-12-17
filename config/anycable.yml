@@ -22,8 +22,8 @@ performance:
 
 production:
   <<: *default
-  # WebSocket URL for clients (uses ws. subdomain for Kamal, /cable path for campfire_cloud)
-  websocket_url: <%= ENV.fetch("ANYCABLE_WEBSOCKET_URL", "wss://ws.#{ENV['APP_HOST']}/cable") %>
+  # WebSocket URL for clients (same domain, /cable path)
+  websocket_url: <%= ENV.fetch("ANYCABLE_WEBSOCKET_URL", "wss://#{ENV['APP_HOST']}/cable") %>
   # Broadcast URL - container name varies by deployment:
   # - Kamal: campfire-anycable
   # - campfire_cloud/Docker Compose: anycable
