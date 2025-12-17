@@ -36,4 +36,19 @@ class TypingNotificationsChannelTest < ActionCable::Channel::TestCase
 
     assert subscription.rejected?
   end
+
+  test "start and stop handle nil @room gracefully (AnyCable HTTP RPC scenario)" do
+    # In AnyCable HTTP RPC mode, @room isn't preserved between calls.
+    # Simulate this by creating a fresh channel instance and calling actions directly.
+    subscribe room_id: @room.id
+
+    # Simulate AnyCable's stateless RPC by clearing @room
+    subscription.instance_variable_set(:@room, nil)
+
+    # These should not raise errors
+    assert_nothing_raised do
+      perform :start
+      perform :stop
+    end
+  end
 end
