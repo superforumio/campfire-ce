@@ -78,6 +78,6 @@ Rails.application.configure do
   # Health checks use Docker container IDs as hostnames.
   # AnyCable RPC uses Docker network aliases (campfire-web).
   config.host_authorization = {
-    exclude: ->(request) { request.path.in?([ "/up", "/_anycable" ]) }
+    exclude: ->(request) { request.path == "/up" || request.path.start_with?("/_anycable") }
   }
 end
