@@ -8,7 +8,8 @@ class Account < ApplicationRecord
   validates :auth_method, inclusion: { in: %w[password otp], message: "must be 'password' or 'otp'" }, allow_nil: true
 
   # Helper method for auth_method with default
+  # Priority: ENV["AUTH_METHOD"] > database column > "password"
   def auth_method_value
-    auth_method || "password"
+    ENV["AUTH_METHOD"] || auth_method || "password"
   end
 end

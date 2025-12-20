@@ -38,6 +38,7 @@ class FirstRunAutoBootstrapTest < ActiveSupport::TestCase
       "AUTO_BOOTSTRAP" => ENV["AUTO_BOOTSTRAP"],
       "ADMIN_EMAIL" => ENV["ADMIN_EMAIL"],
       "ADMIN_PASSWORD" => ENV["ADMIN_PASSWORD"],
+      "ADMIN_AUTH_TOKEN" => ENV["ADMIN_AUTH_TOKEN"],
       "ADMIN_NAME" => ENV["ADMIN_NAME"]
     }
 
@@ -77,11 +78,19 @@ class FirstRunAutoBootstrapTest < ActiveSupport::TestCase
     assert_not FirstRun.auto_bootstrap_enabled?
   end
 
-  test "auto_bootstrap_enabled? returns false when ADMIN_PASSWORD is missing" do
+  test "auto_bootstrap_enabled? returns false when both ADMIN_PASSWORD and ADMIN_AUTH_TOKEN are missing" do
     ENV["AUTO_BOOTSTRAP"] = "true"
     ENV["ADMIN_EMAIL"] = "admin@example.com"
 
     assert_not FirstRun.auto_bootstrap_enabled?
+  end
+
+  test "auto_bootstrap_enabled? returns true with ADMIN_AUTH_TOKEN instead of ADMIN_PASSWORD" do
+    ENV["AUTO_BOOTSTRAP"] = "true"
+    ENV["ADMIN_EMAIL"] = "admin@example.com"
+    ENV["ADMIN_AUTH_TOKEN"] = "test-token-123"
+
+    assert FirstRun.auto_bootstrap_enabled?
   end
 
   test "should_auto_bootstrap? returns true when enabled and no account exists" do
@@ -168,5 +177,67 @@ class FirstRunAutoBootstrapTest < ActiveSupport::TestCase
     result = FirstRun.auto_bootstrap!
 
     assert_equal false, result
+  end
+
+  # ADMIN_AUTH_TOKEN (Campfire Cloud) tests
+
+  test "auto_bootstrap! with ADMIN_AUTH_TOKEN creates admin without must_change_password" do
+    ENV["AUTO_BOOTSTRAP"] = "true"
+    ENV["ADMIN_EMAIL"] = "admin@example.com"
+    ENV["ADMIN_AUTH_TOKEN"] = "test-token-abc123"
+
+    admin = FirstRun.auto_bootstrap!
+
+    assert admin.persisted?
+    assert_equal "admin@example.com", admin.email_address
+    assert_not admin.must_change_password?
+  end
+
+  test "auto_bootstrap! with ADMIN_AUTH_TOKEN creates auth token for first login" do
+    ENV["AUTO_BOOTSTRAP"] = "true"
+    ENV["ADMIN_EMAIL"] = "admin@example.com"
+    ENV["ADMIN_AUTH_TOKEN"] = "test-token-abc123"
+
+    admin = FirstRun.auto_bootstrap!
+
+    auth_token = admin.auth_tokens.find_by(token: "test-token-abc123")
+    assert auth_token.present?
+    assert auth_token.expires_at > Time.current
+    assert auth_token.expires_at <= 24.hours.from_now
+  end
+
+  test "auto_bootstrap! with ADMIN_AUTH_TOKEN pre-verifies the user email" do
+    ENV["AUTO_BOOTSTRAP"] = "true"
+    ENV["ADMIN_EMAIL"] = "admin@example.com"
+    ENV["ADMIN_AUTH_TOKEN"] = "test-token-abc123"
+
+    admin = FirstRun.auto_bootstrap!
+
+    assert admin.verified?
+  end
+
+  test "auto_bootstrap! with ADMIN_AUTH_TOKEN creates account and initial room" do
+    ENV["AUTO_BOOTSTRAP"] = "true"
+    ENV["ADMIN_EMAIL"] = "admin@example.com"
+    ENV["ADMIN_AUTH_TOKEN"] = "test-token-abc123"
+
+    assert_difference "Account.count", 1 do
+      assert_difference "Room.count", 1 do
+        FirstRun.auto_bootstrap!
+      end
+    end
+  end
+
+  test "auto_bootstrap! prefers ADMIN_AUTH_TOKEN over ADMIN_PASSWORD when both set" do
+    ENV["AUTO_BOOTSTRAP"] = "true"
+    ENV["ADMIN_EMAIL"] = "admin@example.com"
+    ENV["ADMIN_AUTH_TOKEN"] = "test-token-abc123"
+    ENV["ADMIN_PASSWORD"] = "testpass123"
+
+    admin = FirstRun.auto_bootstrap!
+
+    # Should use token path (no must_change_password)
+    assert_not admin.must_change_password?
+    assert admin.auth_tokens.find_by(token: "test-token-abc123").present?
   end
 end

@@ -19,10 +19,13 @@ class FirstRun
   end
 
   # Auto-bootstrap: headless setup from environment variables
+  # Supports two modes:
+  #   - ADMIN_AUTH_TOKEN: One-time login link (Campfire Cloud)
+  #   - ADMIN_PASSWORD: Password + forced change (Kamal/self-hosted)
   def self.auto_bootstrap_enabled?
     ENV["AUTO_BOOTSTRAP"] == "true" &&
       ENV["ADMIN_EMAIL"].present? &&
-      ENV["ADMIN_PASSWORD"].present?
+      (ENV["ADMIN_PASSWORD"].present? || ENV["ADMIN_AUTH_TOKEN"].present?)
   end
 
   def self.should_auto_bootstrap?
@@ -37,15 +40,33 @@ class FirstRun
 
       Rails.logger.info "[AutoBootstrap] Creating admin account from environment variables..."
 
-      admin = create!(
-        name: ENV.fetch("ADMIN_NAME", "Administrator"),
-        email_address: ENV["ADMIN_EMAIL"],
-        password: ENV["ADMIN_PASSWORD"]
-      )
+      if ENV["ADMIN_AUTH_TOKEN"].present?
+        # Campfire Cloud path: one-time login link
+        admin = create!(
+          name: ENV.fetch("ADMIN_NAME", "Administrator"),
+          email_address: ENV["ADMIN_EMAIL"],
+          password: SecureRandom.hex(32)  # Random password, never used
+        )
+        admin.update!(verified_at: Time.current)
 
-      admin.update!(must_change_password: true, verified_at: Time.current)
+        # Create AuthToken from ENV value for first login
+        admin.auth_tokens.create!(
+          token: ENV["ADMIN_AUTH_TOKEN"],
+          expires_at: 24.hours.from_now
+        )
 
-      Rails.logger.info "[AutoBootstrap] Admin account created for #{admin.email_address}"
+        Rails.logger.info "[AutoBootstrap] Admin account created for #{admin.email_address} (auth token)"
+      else
+        # Kamal/self-hosted path: password + forced change
+        admin = create!(
+          name: ENV.fetch("ADMIN_NAME", "Administrator"),
+          email_address: ENV["ADMIN_EMAIL"],
+          password: ENV["ADMIN_PASSWORD"]
+        )
+        admin.update!(must_change_password: true, verified_at: Time.current)
+
+        Rails.logger.info "[AutoBootstrap] Admin account created for #{admin.email_address} (password)"
+      end
 
       admin
     end

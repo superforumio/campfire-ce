@@ -10,9 +10,24 @@ class AccountTest < ActiveSupport::TestCase
     assert_equal "password", @account.auth_method_value
   end
 
-  test "auth_method_value returns database value" do
+  test "auth_method_value returns database value when ENV not set" do
     @account.update!(auth_method: "otp")
     assert_equal "otp", @account.auth_method_value
+  end
+
+  test "auth_method_value prioritizes ENV over database value" do
+    original_env = ENV["AUTH_METHOD"]
+    begin
+      @account.update!(auth_method: "password")
+      ENV["AUTH_METHOD"] = "otp"
+      assert_equal "otp", @account.auth_method_value
+    ensure
+      if original_env.nil?
+        ENV.delete("AUTH_METHOD")
+      else
+        ENV["AUTH_METHOD"] = original_env
+      end
+    end
   end
 
   test "validates auth_method inclusion" do
