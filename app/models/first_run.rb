@@ -18,14 +18,13 @@ class FirstRun
     administrator
   end
 
-  # Auto-bootstrap: headless setup from environment variables
-  # Supports two modes:
-  #   - ADMIN_AUTH_TOKEN: One-time login link (Campfire Cloud)
-  #   - ADMIN_PASSWORD: Password + forced change (Kamal/self-hosted)
+  # Auto-bootstrap: headless setup for Campfire Cloud
+  # Creates admin account with one-time login link
+  # For Kamal/self-hosted: use the manual first_run flow instead
   def self.auto_bootstrap_enabled?
     ENV["AUTO_BOOTSTRAP"] == "true" &&
       ENV["ADMIN_EMAIL"].present? &&
-      (ENV["ADMIN_PASSWORD"].present? || ENV["ADMIN_AUTH_TOKEN"].present?)
+      ENV["ADMIN_AUTH_TOKEN"].present?
   end
 
   def self.should_auto_bootstrap?
@@ -38,36 +37,27 @@ class FirstRun
     with_lock do
       return false if Account.any?
 
-      Rails.logger.info "[AutoBootstrap] Creating admin account from environment variables..."
-
-      if ENV["ADMIN_AUTH_TOKEN"].present?
-        # Campfire Cloud path: one-time login link
-        admin = create!(
-          name: ENV.fetch("ADMIN_NAME", "Administrator"),
-          email_address: ENV["ADMIN_EMAIL"],
-          password: SecureRandom.hex(32)  # Random password, never used
-        )
-        admin.update!(verified_at: Time.current)
-
-        # Create AuthToken from ENV value for first login
-        admin.auth_tokens.create!(
-          token: ENV["ADMIN_AUTH_TOKEN"],
-          expires_at: 24.hours.from_now
-        )
-
-        Rails.logger.info "[AutoBootstrap] Admin account created for #{admin.email_address} (auth token)"
-      else
-        # Kamal/self-hosted path: password + forced change
-        admin = create!(
-          name: ENV.fetch("ADMIN_NAME", "Administrator"),
-          email_address: ENV["ADMIN_EMAIL"],
-          password: ENV["ADMIN_PASSWORD"]
-        )
-        admin.update!(must_change_password: true, verified_at: Time.current)
-
-        Rails.logger.info "[AutoBootstrap] Admin account created for #{admin.email_address} (password)"
+      token_value = ENV["ADMIN_AUTH_TOKEN"]
+      if token_value.length < 32
+        raise ArgumentError, "ADMIN_AUTH_TOKEN must be at least 32 characters for security"
       end
 
+      Rails.logger.info "[AutoBootstrap] Creating admin account for Campfire Cloud..."
+
+      admin = create!(
+        name: ENV.fetch("ADMIN_NAME", "Administrator"),
+        email_address: ENV["ADMIN_EMAIL"],
+        password: SecureRandom.hex(32)  # Random password, never used
+      )
+      admin.update!(verified_at: Time.current)
+
+      # Create AuthToken for one-time login link
+      admin.auth_tokens.create!(
+        token: token_value,
+        expires_at: 24.hours.from_now
+      )
+
+      Rails.logger.info "[AutoBootstrap] Admin account created for #{admin.email_address}"
       admin
     end
   rescue => e
