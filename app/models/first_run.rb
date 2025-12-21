@@ -1,3 +1,26 @@
+# FirstRun handles initial account and admin user creation.
+#
+# There are two ways to set up a new Campfire instance:
+#
+# 1. MANUAL FIRST-RUN (Default for Kamal/self-hosted deployments)
+#    - First visitor to the site sees a setup form
+#    - They enter their name, email, and password to become admin
+#    - Uses FirstRun.create! directly from FirstRunsController
+#
+# 2. AUTO-BOOTSTRAP (Campfire Cloud managed deployments only)
+#    - Headless setup without user interaction
+#    - Requires ENV vars: AUTO_BOOTSTRAP=true, ADMIN_EMAIL, ADMIN_AUTH_TOKEN
+#    - Creates admin account automatically on first request
+#    - Sends welcome email with one-time login link
+#    - Admin clicks link to authenticate (no password needed)
+#    - Subsequent logins use OTP (6-digit code via email)
+#
+# Auto-bootstrap is designed for managed hosting platforms where:
+#    - The hosting platform controls the deployment
+#    - Admin credentials are generated programmatically
+#    - Users receive a welcome email with a magic link to sign in
+#    - No manual setup form is needed
+#
 class FirstRun
   FIRST_ROOM_NAME = "All Talk"
   LOCK_FILE = "tmp/auto_bootstrap.lock"
@@ -6,6 +29,7 @@ class FirstRun
     Branding.app_name
   end
 
+  # Manual first-run: creates admin from user-submitted form data
   def self.create!(user_params)
     account = Account.create!(name: account_name)
     room    = Rooms::Open.new(name: FIRST_ROOM_NAME)
@@ -18,19 +42,22 @@ class FirstRun
     administrator
   end
 
-  # Auto-bootstrap: headless setup for Campfire Cloud
-  # Creates admin account with one-time login link
-  # For Kamal/self-hosted: use the manual first_run flow instead
+  # Check if auto-bootstrap is enabled via environment variables.
+  # Requires all three: AUTO_BOOTSTRAP=true, ADMIN_EMAIL, ADMIN_AUTH_TOKEN
   def self.auto_bootstrap_enabled?
     ENV["AUTO_BOOTSTRAP"] == "true" &&
       ENV["ADMIN_EMAIL"].present? &&
       ENV["ADMIN_AUTH_TOKEN"].present?
   end
 
+  # Should we run auto-bootstrap? Only if enabled AND no account exists yet.
   def self.should_auto_bootstrap?
     auto_bootstrap_enabled? && Account.none?
   end
 
+  # Perform auto-bootstrap: create admin account with one-time login token.
+  # Called from MarketingController when first visitor hits the site.
+  # Returns the admin user if successful, false if already bootstrapped.
   def self.auto_bootstrap!
     return false unless should_auto_bootstrap?
 

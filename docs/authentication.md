@@ -194,40 +194,79 @@ end
 
 ---
 
-## AutoBootstrap (Campfire Cloud Only)
+## Initial Setup: Manual vs AutoBootstrap
 
-For Campfire Cloud managed deployments, accounts can be created automatically without the manual first-run form.
+There are two ways to set up a new Campfire instance:
 
-**For Kamal/self-hosted deployments:** Use the manual first_run flow instead. The first visitor to the site will see the setup form to create the admin account.
+### Manual First-Run (Default)
 
-### Campfire Cloud
+**For Kamal/self-hosted deployments.** No special configuration needed.
+
+```
+First visitor hits the site
+  ↓
+Redirected to /first_run (setup form)
+  ↓
+Enters name, email, password
+  ↓
+Admin account created → signed in → redirected to chat
+```
+
+The first visitor becomes the administrator. Subsequent visitors see the marketing page or login screen.
+
+### AutoBootstrap (Campfire Cloud Only)
+
+**For managed hosting platforms** where the deployment is controlled programmatically.
+
+AutoBootstrap enables headless account creation without user interaction. The hosting platform:
+1. Generates credentials before deployment
+2. Sets environment variables
+3. Sends welcome email with one-time login link
+4. User clicks link to authenticate (no password needed)
 
 ```bash
 AUTO_BOOTSTRAP=true
 ADMIN_EMAIL=user@example.com
-ADMIN_AUTH_TOKEN=<32+-char-secure-token>
-AUTH_METHOD=otp
+ADMIN_NAME=Administrator           # Optional, defaults to "Administrator"
+ADMIN_AUTH_TOKEN=<32+-char-token>  # One-time login token
+AUTH_METHOD=otp                    # Recommended for Cloud
 ```
 
-Flow:
-1. Cloud generates `ADMIN_AUTH_TOKEN` (32+ chars required)
-2. Cloud sends welcome email with login link
-3. Admin clicks link → validated via `sign_in_with_token` route
-4. Session created → redirected to chat
-5. Subsequent logins use OTP (6-digit code)
+**Flow:**
+```
+First visitor hits the site
+  ↓
+AutoBootstrap triggered (no setup form)
+  ↓
+Admin account created with auth token
+  ↓
+User receives welcome email with login link
+  ↓
+Clicks link → /auth_tokens/validate/{token}
+  ↓
+Token validated → session created → redirected to chat
+  ↓
+Subsequent logins use OTP (6-digit code via email)
+```
+
+**When to use AutoBootstrap:**
+- ✅ Campfire Cloud managed deployments
+- ❌ Kamal/self-hosted (use manual first_run instead)
 
 ### Security Requirements
 
 - `ADMIN_AUTH_TOKEN` must be at least 32 characters
 - Tokens expire after 24 hours
-- Password bootstrap requires password change on first login
+- Tokens are single-use (invalidated after login)
+- Default is `false` - must explicitly set `AUTO_BOOTSTRAP=true`
 
 ### Files
 
 | File | Purpose |
 |------|---------|
-| `app/models/first_run.rb` | AutoBootstrap logic |
-| `app/controllers/change_passwords_controller.rb` | Force password change |
+| `app/models/first_run.rb` | Manual and AutoBootstrap logic |
+| `app/controllers/first_runs_controller.rb` | Manual setup form |
+| `app/controllers/marketing_controller.rb` | Triggers AutoBootstrap |
 | `config/routes.rb` | `sign_in_with_token` route |
 
 ---
