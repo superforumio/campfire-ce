@@ -3,6 +3,16 @@ require "test_helper"
 class AuthTokens::ValidationsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @user = users(:david)
+    @original_auth_method = ENV["AUTH_METHOD"]
+    ENV["AUTH_METHOD"] = "otp"
+  end
+
+  teardown do
+    if @original_auth_method.nil?
+      ENV.delete("AUTH_METHOD")
+    else
+      ENV["AUTH_METHOD"] = @original_auth_method
+    end
   end
 
   test "valid OTP code signs in user" do
