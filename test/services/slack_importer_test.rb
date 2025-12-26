@@ -29,8 +29,8 @@ class SlackImporterTest < ActiveSupport::TestCase
     assert_equal "Lindy Smith", lindy.name
     assert_equal "Software Engineer", lindy.bio
 
-    # Check slack metadata stored in preferences
-    prefs = JSON.parse(lindy.preferences)
+    # Check slack metadata stored in preferences (already deserialized by Rails)
+    prefs = lindy.preferences
     assert prefs["slack_import"]
     assert_equal "U07Q4MHCP", prefs["slack_user_id"]
     assert_equal "lindy", prefs["slack_username"]
@@ -200,18 +200,28 @@ class SlackImporterTest < ActiveSupport::TestCase
     assert channel_ref_message.present?
   end
 
-  test "generates unique slugs for duplicate channel names" do
+  test "is idempotent - re-importing same data does not create duplicates" do
     # First import
     importer1 = SlackImporter.new(@zip_path.to_s)
-    importer1.import!
+    stats1 = importer1.import!
+
+    room_count_after_first = Room.count
+    user_count_after_first = User.count
+    message_count_after_first = Message.count
 
     assert Rooms::Open.exists?(slug: "general")
+    assert stats1[:rooms] > 0
+    assert stats1[:users] > 0
 
-    # Second import should create general-1
+    # Second import should skip existing records
     importer2 = SlackImporter.new(@zip_path.to_s)
-    importer2.import!
+    stats2 = importer2.import!
 
-    assert Rooms::Open.exists?(slug: "general-1")
+    assert_equal room_count_after_first, Room.count, "Room count should not change on re-import"
+    assert_equal user_count_after_first, User.count, "User count should not change on re-import"
+    assert_equal message_count_after_first, Message.count, "Message count should not change on re-import"
+    assert_equal 0, stats2[:rooms], "Stats should show 0 new rooms"
+    assert_equal 0, stats2[:users], "Stats should show 0 new users"
   end
 
   test "returns stats after import" do

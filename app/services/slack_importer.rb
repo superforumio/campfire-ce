@@ -135,6 +135,13 @@ class SlackImporter
     users_data.each do |slack_user|
       next if slack_user["is_bot"] || slack_user["deleted"]
 
+      # Check if user was already imported (idempotency)
+      existing_user = find_user_by_slack_id(slack_user["id"])
+      if existing_user
+        @user_map[slack_user["id"]] = existing_user
+        next
+      end
+
       display_name = slack_user.dig("profile", "real_name").presence ||
                      slack_user.dig("profile", "display_name").presence ||
                      slack_user["name"]
@@ -146,14 +153,13 @@ class SlackImporter
         role: :member,
         bio: slack_user.dig("profile", "title")
       )
-      user.save!(validate: false)
-
       # Store slack metadata in preferences for future account claiming
-      user.update_column(:preferences, {
-        slack_import: true,
-        slack_user_id: slack_user["id"],
-        slack_username: slack_user["name"]
-      }.to_json)
+      user.preferences = {
+        "slack_import" => true,
+        "slack_user_id" => slack_user["id"],
+        "slack_username" => slack_user["name"]
+      }
+      user.save!(validate: false)
 
       @user_map[slack_user["id"]] = user
       @stats[:users] += 1
@@ -162,16 +168,38 @@ class SlackImporter
     log_progress "Imported #{@stats[:users]} users"
   end
 
+  def find_user_by_slack_id(slack_user_id)
+    # Use SQLite's json_extract for reliable JSON querying
+    User.where("json_extract(preferences, '$.slack_user_id') = ?", slack_user_id).first
+  end
+
+  def grant_open_room_access(room)
+    # Grant access to all active users who aren't already members
+    existing_member_ids = room.memberships.pluck(:user_id)
+    users_to_add = User.active.where.not(id: existing_member_ids)
+    room.memberships.grant_to(users_to_add) if users_to_add.exists?
+  end
+
   def import_channels
     channels_data = parse_json("channels.json")
     log_progress "Found #{channels_data.count} public channels"
 
     channels_data.each do |channel|
-      slug = generate_unique_slug(channel["name"])
+      base_slug = channel["name"].to_s.parameterize
+
+      # Check if room was already imported (idempotency)
+      existing_room = Room.find_by(slug: base_slug)
+      if existing_room
+        @channel_map[channel["id"]] = existing_room
+        # Ensure all active users have access to existing Open rooms
+        grant_open_room_access(existing_room) if existing_room.is_a?(Rooms::Open)
+        log_progress "Room already exists: ##{existing_room.name}"
+        next
+      end
 
       room = Rooms::Open.create!(
         name: channel["name"].tr("-_", " ").titleize,
-        slug: slug,
+        slug: base_slug,
         creator: first_admin_or_system_user
       )
 
@@ -180,8 +208,7 @@ class SlackImporter
       room.memberships.grant_to(member_users) if member_users.any?
 
       # Grant access to all existing active users (Open rooms are visible to everyone)
-      existing_users = User.active.where.not(id: member_users.map(&:id))
-      room.memberships.grant_to(existing_users) if existing_users.exists?
+      grant_open_room_access(room)
 
       @channel_map[channel["id"]] = room
       @stats[:rooms] += 1
@@ -195,11 +222,18 @@ class SlackImporter
     log_progress "Found #{groups_data.count} private channels"
 
     groups_data.each do |group|
-      slug = generate_unique_slug(group["name"])
+      base_slug = group["name"].to_s.parameterize
+
+      # Check if room was already imported (idempotency)
+      existing_room = Room.find_by(slug: base_slug)
+      if existing_room
+        @channel_map[group["id"]] = existing_room
+        next
+      end
 
       room = Rooms::Closed.create!(
         name: group["name"].tr("-_", " ").titleize,
-        slug: slug,
+        slug: base_slug,
         creator: first_admin_or_system_user
       )
 
@@ -221,9 +255,10 @@ class SlackImporter
       next if members.size < 2
 
       Current.user = members.first
+      room_count_before = Rooms::Direct.count
       room = Rooms::Direct.find_or_create_for(members)
       @channel_map[dm["id"]] = room
-      @stats[:rooms] += 1
+      @stats[:rooms] += 1 if Rooms::Direct.count > room_count_before
     end
     Current.user = nil
   end
@@ -262,6 +297,16 @@ class SlackImporter
     user = @user_map[msg["user"]]
     return unless user
 
+    client_message_id = "slack_#{msg['ts']}"
+
+    # Check if message was already imported (idempotency)
+    # Search globally because thread replies may have been moved to thread rooms
+    existing_message = Message.find_by(client_message_id: client_message_id)
+    if existing_message
+      @message_map[msg["ts"]] = existing_message
+      return
+    end
+
     # Convert Slack timestamp to Ruby time
     timestamp = Time.at(msg["ts"].to_f)
 
@@ -275,7 +320,7 @@ class SlackImporter
       room: room,
       creator: user,
       body: body,
-      client_message_id: "slack_#{msg['ts']}"
+      client_message_id: client_message_id
     )
 
     # Bypass callbacks for bulk import performance
@@ -313,6 +358,9 @@ class SlackImporter
       (reaction["users"] || []).each do |user_id|
         user = @user_map[user_id]
         next unless user
+
+        # Check if boost already exists (idempotency)
+        next if message.boosts.exists?(booster: user, content: emoji)
 
         boost = Boost.new(
           message: message,
@@ -431,32 +479,20 @@ class SlackImporter
     @zip.find_entry("#{name}/") || @zip.entries.any? { |e| e.name.start_with?("#{name}/") }
   end
 
-  def generate_unique_slug(name)
-    base_slug = name.to_s.parameterize
-    slug = base_slug
-    counter = 1
-
-    while Room.exists?(slug: slug) || Room::RESERVED_SLUGS.include?(slug)
-      slug = "#{base_slug}-#{counter}"
-      counter += 1
-    end
-
-    slug
-  end
-
   def first_admin_or_system_user
     @admin_user ||= User.find_by(role: :administrator) || @user_map.values.first || create_system_user
   end
 
   def create_system_user
-    User.create!(
+    user = User.new(
       name: "Slack Import",
       email_address: nil,
       status: :active,
-      role: :member
-    ).tap do |user|
-      user.update_column(:preferences, { system_user: true, slack_import: true }.to_json)
-    end
+      role: :member,
+    )
+    user.preferences = { "system_user" => true, "slack_import" => true }
+    user.save!(validate: false)
+    user
   end
 
   def log_progress(message)
