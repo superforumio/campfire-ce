@@ -425,6 +425,9 @@ class SlackImporter
         # Grant membership to reply creator if not already
         thread_room.memberships.grant_to([ reply.creator ])
       end
+
+      # Update counter cache (update_columns bypasses it)
+      Rooms::Thread.reset_counters(thread_room.id, :messages)
     end
 
     log_progress "Created #{@stats[:threads]} threads"
