@@ -35,7 +35,7 @@ The feature spans two codebases:
 │                      DEPLOYED CAMPFIRE-CE                                │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
-│  bin/rails slack:import[/disk/slack_export.zip]                         │
+│  bin/rails slack:import[/tmp/slack_export.zip]                          │
 │       │                                                                  │
 │       ▼                                                                  │
 │  SlackImporter Service                                                   │
@@ -148,7 +148,6 @@ Core import logic:
 - `new` - Upload form with instructions
 - `create` - File validation, record creation
 - `show` - Progress page with Turbo Stream updates
-- `index` - Import history
 
 ## User Handling
 
@@ -218,6 +217,18 @@ Unknown emoji default to 👍.
 | Duplicate slugs | Auto-increment suffix (general-1, general-2) |
 
 All imports are wrapped in a database transaction - if any step fails, all changes are rolled back.
+
+## Idempotency
+
+The importer is **idempotent** - running the same import multiple times is safe:
+
+- **Users**: Matched by `slack_user_id` in preferences, skipped if exists
+- **Rooms**: Matched by `slack_channel_id` in preferences, skipped if exists
+- **Messages**: Matched by `client_message_id` (Slack's `ts`), skipped if exists
+- **Boosts**: Matched by user + message + content combination, skipped if exists
+- **Threads**: Created only if parent message has replies and thread doesn't exist
+
+This allows retrying failed imports or re-importing to pick up any missed data.
 
 ## Testing
 
