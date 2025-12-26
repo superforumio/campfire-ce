@@ -482,6 +482,7 @@ DEPENDENCIES
   resque-pool (~> 0.7.1)
   rqrcode
   rubocop-rails-omakase
+  rubyzip
   rufus-scheduler
   selenium-webdriver
   sentry-rails
