@@ -175,9 +175,13 @@ class SlackImporter
         creator: first_admin_or_system_user
       )
 
-      # Add members
+      # Add imported Slack members
       member_users = (channel["members"] || []).filter_map { |id| @user_map[id] }
       room.memberships.grant_to(member_users) if member_users.any?
+
+      # Grant access to all existing active users (Open rooms are visible to everyone)
+      existing_users = User.active.where.not(id: member_users.map(&:id))
+      room.memberships.grant_to(existing_users) if existing_users.exists?
 
       @channel_map[channel["id"]] = room
       @stats[:rooms] += 1
