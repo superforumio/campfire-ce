@@ -295,7 +295,12 @@ class SlackImporter
     return if msg["subtype"].in?(%w[channel_join channel_leave channel_purpose channel_topic])
 
     user = @user_map[msg["user"]]
-    return unless user
+    unless user
+      # Track skipped messages that might be thread parents
+      @skipped_user_messages ||= []
+      @skipped_user_messages << msg["ts"] if msg["ts"]
+      return
+    end
 
     client_message_id = "slack_#{msg['ts']}"
 
@@ -376,14 +381,18 @@ class SlackImporter
   end
 
   def create_threads
-    log_progress "Processing #{@thread_replies.count} thread replies..."
+    log_progress "Processing #{@thread_replies.count} thread replies across #{@thread_replies.map { |r| r[:thread_ts] }.uniq.count} threads..."
 
     # Group replies by their parent thread_ts
     replies_by_thread = @thread_replies.group_by { |r| r[:thread_ts] }
 
     replies_by_thread.each do |thread_ts, replies|
       parent = @message_map[thread_ts]
-      next unless parent
+      unless parent
+        reason = (@skipped_user_messages || []).include?(thread_ts) ? "parent from bot/deleted user" : "parent message missing"
+        log_progress "Warning: Thread skipped - #{reason} (thread_ts=#{thread_ts}, #{replies.count} replies orphaned)"
+        next
+      end
 
       # Find or create thread room for this parent message
       thread_room = parent.threads.first
@@ -413,6 +422,11 @@ class SlackImporter
     end
 
     log_progress "Created #{@stats[:threads]} threads"
+
+    skipped_count = (@skipped_user_messages || []).count
+    if skipped_count > 0
+      log_progress "Note: #{skipped_count} messages skipped (from bots or deleted users)"
+    end
   end
 
   def convert_mentions(text)
