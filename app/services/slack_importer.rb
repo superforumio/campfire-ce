@@ -271,7 +271,11 @@ class SlackImporter
 
   def import_messages_for_channel(channel_id, room)
     channel_folder = find_channel_folder(channel_id)
-    return unless channel_folder
+    unless channel_folder
+      log_progress "Warning: No message folder found for channel #{channel_id} (#{room.name})"
+      return
+    end
+    log_progress "Processing messages for ##{room.name} from folder: #{channel_folder}/"
 
     message_files = @zip.entries.select do |entry|
       entry.name.start_with?("#{channel_folder}/") &&
@@ -299,6 +303,7 @@ class SlackImporter
       # Track skipped messages that might be thread parents
       @skipped_user_messages ||= []
       @skipped_user_messages << msg["ts"] if msg["ts"]
+      log_progress "Skipped message (unknown user #{msg['user']}): #{msg['text']&.truncate(50)}"
       return
     end
 
@@ -309,6 +314,7 @@ class SlackImporter
     existing_message = Message.find_by(client_message_id: client_message_id)
     if existing_message
       @message_map[msg["ts"]] = existing_message
+      log_progress "Skipped message (already exists): #{msg['text']&.truncate(50)}"
       return
     end
 
