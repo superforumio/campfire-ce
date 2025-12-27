@@ -2,51 +2,80 @@
 
 Import Slack workspace data into Campfire, enabling teams to migrate their chat history from Slack.
 
-## Overview
+## Quick Start
 
-The Slack Import feature allows users to upload a Slack export ZIP file and have it processed into Campfire's data model. The import handles users, channels, messages, threads, and reactions.
+1. **Export your Slack data**
+   - Go to Slack → Settings & administration → Workspace settings → Import/Export Data
+   - Click "Export" and wait for the download link
 
-## Architecture
+2. **Transfer the ZIP to your server**
+   ```bash
+   scp slack_export.zip user@your-server:/tmp/
+   ```
 
-The feature spans two codebases:
+3. **Validate the export** (optional but recommended)
+   ```bash
+   bin/rails slack:validate[/tmp/slack_export.zip]
+   ```
 
+4. **Run the import**
+   ```bash
+   bin/rails slack:import[/tmp/slack_export.zip]
+   ```
+
+Example output:
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         CAMPFIRE CLOUD                                   │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  Browser Upload                                                          │
-│       │                                                                  │
-│       ▼                                                                  │
-│  SlackImportsController#create                                           │
-│       │                                                                  │
-│       ▼                                                                  │
-│  ValidateSlackImportJob ──────► R2 Storage                              │
-│       │                              │                                   │
-│       ▼                              │                                   │
-│  ProcessSlackImportJob ◄─────────────┘                                   │
-│       │                                                                  │
-│       │ SCP + SSH                                                        │
-│       ▼                                                                  │
-└───────┼──────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                      DEPLOYED CAMPFIRE-CE                                │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  bin/rails slack:import[/tmp/slack_export.zip]                          │
-│       │                                                                  │
-│       ▼                                                                  │
-│  SlackImporter Service                                                   │
-│       │                                                                  │
-│       ├──► Users (placeholder, no email)                                │
-│       ├──► Rooms (Open/Closed/Direct)                                   │
-│       ├──► Messages (with timestamps preserved)                         │
-│       ├──► Threads (from thread_ts)                                     │
-│       └──► Boosts (from reactions)                                      │
-│                                                                          │
-└─────────────────────────────────────────────────────────────────────────┘
+Validating Slack export: /tmp/slack_export.zip
+✓ Valid export found
+  Users: 25, Channels: 10
+
+Starting import...
+
+Found 25 users in export
+Imported 23 users
+Found 10 public channels
+Created room: #General
+Created room: #Random
+...
+Imported 5432 messages...
+Processing 89 thread replies...
+Created 45 threads
+
+IMPORT_COMPLETE
+IMPORT_STATS:{"users":23,"rooms":10,"messages":5432,"threads":45,"boosts":234}
+```
+
+## Validation
+
+Before importing, you can validate the export file:
+
+```bash
+bin/rails slack:validate[/path/to/export.zip]
+```
+
+This checks:
+- ZIP file is valid and readable
+- Required files exist (`users.json`, `channels.json`)
+- JSON files are parseable
+- Reports counts of users, channels, private groups, and DMs
+
+Example validation output:
+```
+Validating Slack export: /tmp/slack_export.zip
+
+✓ Valid Slack export
+
+Export contents:
+  Users:            25
+  Public channels:  10
+  Private channels: 0
+  Direct messages:  0
+  Message files:    47
+
+Warnings:
+  ⚠ This export only contains public channels. Private channels and DMs require a Slack Business+ plan to export.
+
+VALIDATION_PASSED
 ```
 
 ## Slack Export Format
@@ -65,7 +94,7 @@ export.zip/
     └── ...
 ```
 
-**Export Limitations by Plan:**
+**Export Limitations by Slack Plan:**
 - Free/Pro: Public channels only
 - Business+/Enterprise: Full export including private channels and DMs
 
@@ -82,72 +111,6 @@ export.zip/
 | `<@U123>` mention | `@username` | Plain text conversion |
 | `<#C123\|name>` | `#name` | Channel reference |
 | `<!channel>` | `@channel` | Broadcast mention |
-
-## Usage
-
-### Via Rake Task (campfire-ce)
-
-Run directly on a Campfire instance:
-
-```bash
-bin/rails slack:import[/path/to/slack_export.zip]
-```
-
-Output:
-```
-Starting Slack import from: /path/to/slack_export.zip
-Found 25 users in export
-Imported 23 users
-Found 10 public channels
-Created room: #General
-Created room: #Random
-...
-Imported 5432 messages...
-Processing 89 thread replies...
-Created 45 threads
-
-IMPORT_COMPLETE
-IMPORT_STATS:{"users":23,"rooms":10,"messages":5432,"threads":45,"boosts":234}
-```
-
-### Via Web UI (campfire_cloud)
-
-1. Navigate to Server Settings → Import Data → From Slack
-2. Upload your `slack_export.zip` file (max 500MB)
-3. System validates the ZIP structure
-4. Progress updates shown in real-time via WebSocket
-5. Import completes with summary stats
-
-## Implementation Details
-
-### campfire-ce Components
-
-**`lib/tasks/slack.rake`**
-Entry point for the import. Accepts ZIP path, runs SlackImporter, outputs parseable stats.
-
-**`app/services/slack_importer.rb`**
-Core import logic:
-- Transaction-wrapped for atomicity
-- Imports users as placeholders (no email required)
-- Creates rooms with appropriate STI types
-- Preserves original message timestamps
-- Handles thread_ts for thread creation
-- Converts reactions to Boosts with emoji mapping
-
-### campfire_cloud Components
-
-**Model:** `SlackImport`
-- Status: `pending` → `validating` → `uploading` → `processing` → `completed|failed`
-- Stores stats, validation results, error messages
-
-**Jobs:**
-- `ValidateSlackImportJob` - Validates ZIP structure, uploads to R2
-- `ProcessSlackImportJob` - Downloads from R2, transfers via SSH, runs rake task
-
-**Controller:** `SlackImportsController`
-- `new` - Upload form with instructions
-- `create` - File validation, record creation
-- `show` - Progress page with Turbo Stream updates
 
 ## User Handling
 
@@ -205,19 +168,6 @@ Common Slack emoji names are mapped to Unicode:
 
 Unknown emoji default to 👍.
 
-## Error Handling
-
-| Scenario | Handling |
-|----------|----------|
-| Invalid ZIP format | Validation fails with error message |
-| Missing users.json/channels.json | Validation fails |
-| SSH connection failure | Job retry (2 attempts) |
-| Rake task error | Status set to failed, error logged |
-| Malformed JSON | Skip entry, log warning, continue |
-| Duplicate slugs | Auto-increment suffix (general-1, general-2) |
-
-All imports are wrapped in a database transaction - if any step fails, all changes are rolled back.
-
 ## Idempotency
 
 The importer is **idempotent** - running the same import multiple times is safe:
@@ -229,6 +179,17 @@ The importer is **idempotent** - running the same import multiple times is safe:
 - **Threads**: Created only if parent message has replies and thread doesn't exist
 
 This allows retrying failed imports or re-importing to pick up any missed data.
+
+## Error Handling
+
+| Scenario | Handling |
+|----------|----------|
+| Invalid ZIP format | Validation fails with error message |
+| Missing users.json/channels.json | Validation fails |
+| Malformed JSON | Skip entry, log warning, continue |
+| Duplicate slugs | Auto-increment suffix (general-1, general-2) |
+
+All imports are wrapped in a database transaction - if any step fails, all changes are rolled back.
 
 ## Testing
 
@@ -244,15 +205,6 @@ Test fixtures are in `test/fixtures/slack_export/`:
 - `general/2024-01-15.json` - Messages with mentions, reactions, threads
 - `random/2024-01-15.json` - Messages with channel references
 
-## Security Considerations
-
-- **File size limit**: 500MB max upload
-- **R2 storage**: Keys scoped to `slack_imports/{subdomain}/`
-- **Cleanup**: Files deleted from R2 and server after import
-- **Access control**: Only server owners/admins can import
-- **Execution**: Rake task runs inside Docker container isolation
-- **No credentials**: Imported users have no login capability
-
 ## Limitations
 
 - **No file attachments**: Only message text is imported
@@ -260,12 +212,3 @@ Test fixtures are in `test/fixtures/slack_export/`:
 - **No private data without Business+**: Free/Pro exports only include public channels
 - **No real-time sync**: One-time import only
 - **Timestamp precision**: Preserved to the second (Slack uses microseconds)
-
-## Future Enhancements
-
-Potential improvements:
-- Email matching for auto-claiming user accounts
-- File/attachment download support
-- Import progress percentage
-- Selective channel import
-- Dry-run mode for previewing changes

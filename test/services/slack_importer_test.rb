@@ -17,11 +17,12 @@ class SlackImporterTest < ActiveSupport::TestCase
   test "imports users from users.json" do
     importer = SlackImporter.new(@zip_path.to_s)
 
+    stats = nil
     assert_difference "User.count", 3 do # 3 active, non-bot users
-      importer.import!
+      stats = importer.import!
     end
 
-    assert_equal 3, importer.stats[:users]
+    assert_equal 3, stats[:users]
 
     # Verify user details
     lindy = User.find_by("preferences LIKE ?", "%lindy%")
@@ -50,11 +51,12 @@ class SlackImporterTest < ActiveSupport::TestCase
   test "imports channels as Rooms::Open" do
     importer = SlackImporter.new(@zip_path.to_s)
 
+    stats = nil
     assert_difference "Rooms::Open.count", 2 do
-      importer.import!
+      stats = importer.import!
     end
 
-    assert_equal 2, importer.stats[:rooms]
+    assert_equal 2, stats[:rooms]
 
     general = Rooms::Open.find_by(slug: "general")
     assert general.present?
@@ -84,9 +86,9 @@ class SlackImporterTest < ActiveSupport::TestCase
 
   test "imports messages with preserved timestamps" do
     importer = SlackImporter.new(@zip_path.to_s)
-    importer.import!
+    stats = importer.import!
 
-    assert importer.stats[:messages] > 0
+    assert stats[:messages] > 0
 
     general = Rooms::Open.find_by(slug: "general")
     messages = general.messages.where.not(room_id: Rooms::Thread.pluck(:id)).order(:created_at)
@@ -152,9 +154,9 @@ class SlackImporterTest < ActiveSupport::TestCase
 
   test "imports reactions as boosts" do
     importer = SlackImporter.new(@zip_path.to_s)
-    importer.import!
+    stats = importer.import!
 
-    assert_equal 3, importer.stats[:boosts] # 2 thumbsup + 1 heart
+    assert_equal 3, stats[:boosts] # 2 thumbsup + 1 heart
 
     message_with_reactions = Message.find_by("client_message_id LIKE ?", "%1705312980%")
     assert message_with_reactions.present?
@@ -168,15 +170,15 @@ class SlackImporterTest < ActiveSupport::TestCase
     message_with_reactions = Message.find_by("client_message_id LIKE ?", "%1705312980%")
     emojis = message_with_reactions.boosts.pluck(:content)
 
-    assert_includes emojis, SlackImporter::EMOJI_MAP["thumbsup"]
-    assert_includes emojis, SlackImporter::EMOJI_MAP["heart"]
+    assert_includes emojis, Slack::EmojiConverter::MAPPING["thumbsup"]
+    assert_includes emojis, Slack::EmojiConverter::MAPPING["heart"]
   end
 
   test "creates threads from thread_ts" do
     importer = SlackImporter.new(@zip_path.to_s)
-    importer.import!
+    stats = importer.import!
 
-    assert_equal 1, importer.stats[:threads]
+    assert_equal 1, stats[:threads]
 
     # Find the thread parent
     parent_message = Message.find_by("client_message_id LIKE ?", "%1705313200%")
@@ -236,10 +238,10 @@ class SlackImporterTest < ActiveSupport::TestCase
   end
 
   test "rolls back on error" do
-    importer = SlackImporter.new(@zip_path.to_s)
+    # Force an error during messages import
+    Slack::MessagesImporter.any_instance.stubs(:import).raises(StandardError.new("Test error"))
 
-    # Force an error during import
-    SlackImporter.any_instance.stubs(:import_messages_for_all_channels).raises(StandardError.new("Test error"))
+    importer = SlackImporter.new(@zip_path.to_s)
 
     assert_no_difference [ "User.count", "Room.count", "Message.count" ] do
       assert_raises(StandardError) do
@@ -257,6 +259,50 @@ class SlackImporterTest < ActiveSupport::TestCase
     assert_nothing_raised do
       importer.import!
     end
+  end
+
+  test "validate returns valid result for valid export" do
+    result = SlackImporter.validate(@zip_path.to_s)
+
+    assert result.valid?
+    assert_empty result.errors
+    assert_equal 3, result.stats[:users_count]
+    assert_equal 2, result.stats[:channels_count]
+    assert result.stats[:message_files_count] > 0
+  end
+
+  test "validate returns error for missing users.json" do
+    create_zip_without("users.json")
+
+    result = SlackImporter.validate(@zip_path.to_s)
+
+    assert_not result.valid?
+    assert result.errors.any? { |e| e.include?("users.json") }
+  end
+
+  test "validate returns error for missing channels.json" do
+    create_zip_without("channels.json")
+
+    result = SlackImporter.validate(@zip_path.to_s)
+
+    assert_not result.valid?
+    assert result.errors.any? { |e| e.include?("channels.json") }
+  end
+
+  test "validate returns error for non-existent file" do
+    result = SlackImporter.validate("/nonexistent/path.zip")
+
+    assert_not result.valid?
+    assert result.errors.any? { |e| e.include?("File not found") }
+  end
+
+  test "validate returns warning for public-only export" do
+    create_minimal_test_zip
+
+    result = SlackImporter.validate(@zip_path.to_s)
+
+    assert result.valid?
+    assert result.warnings.any? { |w| w.include?("public channels") }
   end
 
   private
@@ -290,6 +336,18 @@ class SlackImporterTest < ActiveSupport::TestCase
     Zip::File.open(@zip_path, create: true) do |zipfile|
       zipfile.add("users.json", @fixtures_path.join("users.json"))
       zipfile.add("channels.json", @fixtures_path.join("channels.json"))
+    end
+  end
+
+  def create_zip_without(exclude_file)
+    File.delete(@zip_path) if File.exist?(@zip_path)
+
+    Zip::File.open(@zip_path, create: true) do |zipfile|
+      [ "users.json", "channels.json" ].each do |filename|
+        next if filename == exclude_file
+        file_path = @fixtures_path.join(filename)
+        zipfile.add(filename, file_path) if File.exist?(file_path)
+      end
     end
   end
 end
