@@ -53,6 +53,8 @@ module Slack
     def move_replies_to_thread(thread_room, replies)
       replies.each do |reply_data|
         reply = reply_data[:message]
+        next if reply.room_id == thread_room.id
+
         reply.update_columns(room_id: thread_room.id)
         thread_room.memberships.grant_to([ reply.creator ])
       end

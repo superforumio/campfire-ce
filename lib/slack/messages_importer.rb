@@ -55,7 +55,7 @@ module Slack
       existing_message = Message.find_by(client_message_id: client_message_id)
       if existing_message
         @context.message_map[msg["ts"]] = existing_message
-        @context.log "Skipped message (already exists): #{msg['text']&.truncate(50)}"
+        track_thread_reply(existing_message, msg, room)
         return
       end
 
