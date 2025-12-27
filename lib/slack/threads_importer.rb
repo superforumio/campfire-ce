@@ -35,7 +35,8 @@ module Slack
       begin
         Current.user = parent.creator
 
-        thread_users = ([ parent.creator ] + replies.map { |r| r[:message].creator }).uniq
+        # Include all parent room members, matching ThreadsController#new behavior
+        thread_users = parent.room.users.to_a
 
         thread_room = Rooms::Thread.create_for(
           { parent_message_id: parent.id, creator: parent.creator },
