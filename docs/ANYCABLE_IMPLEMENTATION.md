@@ -114,7 +114,8 @@ anycable-go --version
 
 ```bash
 cd /path/to/campfire-ce
-bundle add anycable-rails
+# Use anycable-rails-core to avoid gRPC dependency (HTTP RPC mode doesn't need it)
+bundle add anycable-rails-core
 ```
 
 ### Step 3: Create Configuration Files

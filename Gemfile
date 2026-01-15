@@ -23,8 +23,8 @@ gem "importmap-rails"
 gem "turbo-rails"
 gem "stimulus-rails"
 
-# Real-time WebSocket server
-gem "anycable-rails", "~> 1.5"
+# Real-time WebSocket server (core gem avoids gRPC dependency since we use HTTP RPC mode)
+gem "anycable-rails-core", "~> 1.5"
 
 # Media handling
 gem "image_processing", ">= 1.2"
