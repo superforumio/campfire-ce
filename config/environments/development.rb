@@ -70,7 +70,7 @@ Rails.application.configure do
   # WebSocket URL (used by action_cable_meta_tag)
   # When AnyCable is enabled, connect to AnyCable-Go on port 8080
   # When disabled, connect to Rails ActionCable on port 3000
-  if ENV["DISABLE_ANYCABLE"] != "true"
+  if ENV["ANYCABLE_ENABLED"] != "false"
     config.action_cable.url = "ws://localhost:8080/cable"
   else
     config.action_cable.url = "ws://localhost:3000/cable"

@@ -154,20 +154,24 @@ default: &default
   url: redis://localhost:6379
 
 development:
-  adapter: any_cable  # Change from redis to any_cable
+  adapter: <%= ENV["ANYCABLE_ENABLED"] == "false" ? "redis" : "any_cable" %>
+  <% if ENV["ANYCABLE_ENABLED"] == "false" %>
+  url: redis://localhost:6379
   channel_prefix: campfire_development
+  <% end %>
 
 test:
   adapter: test
 
-performance:
-  <<: *default
-  channel_prefix: campfire_performance
-
 production:
-  adapter: any_cable  # Change from redis to any_cable
+  adapter: <%= ENV["ANYCABLE_ENABLED"] == "false" ? "redis" : "any_cable" %>
+  <% if ENV["ANYCABLE_ENABLED"] == "false" %>
+  url: <%= ENV.fetch("REDIS_URL", "redis://localhost:6379") %>
   channel_prefix: campfire_production
+  <% end %>
 ```
+
+AnyCable is enabled by default. Set `ANYCABLE_ENABLED=false` to use standard ActionCable with Redis.
 
 ### Step 5: Update Procfile.dev
 
@@ -314,7 +318,7 @@ services:
   web:
     image: ghcr.io/superforumio/campfire-ce:latest
     environment:
-      - CABLE_ADAPTER=any_cable
+      # AnyCable is enabled by default (ANYCABLE_ENABLED != "false")
       - ANYCABLE_SECRET=${ANYCABLE_SECRET}
     networks:
       - campfire
