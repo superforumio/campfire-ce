@@ -34,8 +34,8 @@ importers:
         specifier: ^7.1.9
         version: 7.1.9(jiti@2.6.0)(lightningcss@1.30.1)
       vite-plugin-ruby:
-        specifier: ^5.1.1
-        version: 5.1.1(vite@7.1.9(jiti@2.6.0)(lightningcss@1.30.1))
+        specifier: ^5.1.2
+        version: 5.1.2(vite@7.1.9(jiti@2.6.0)(lightningcss@1.30.1))
 
 packages:
 
@@ -479,8 +479,8 @@ packages:
     resolution: {integrity: sha512-7MptL8U0cqcFdzIzwOTHoilX9x5BrNqye7Z/LuC7kCMRio1EMSyqRK3BEAUD7sXRq4iT4AzTVuZdhgQ2TCvYLg==}
     engines: {node: '>=8.6.0'}
 
-  fastq@1.19.1:
-    resolution: {integrity: sha512-GwLTyxkCXjXbxqIhTsMI2Nui8huMPtnxg7krajPJAjnEG/iiOS7i+zCtWGZR9G0NBKbXKh6X9m9UIsYX/N6vvQ==}
+  fastq@1.20.1:
+    resolution: {integrity: sha512-GGToxJ/w1x32s/D2EKND7kTil4n8OVk/9mycTc4VDza13lOvpUZTGX3mFSCtV9ksdGBVzvsyAVLM6mHFThxXxw==}
 
   fdir@6.5.0:
     resolution: {integrity: sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg==}
@@ -741,8 +741,8 @@ packages:
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
 
-  vite-plugin-ruby@5.1.1:
-    resolution: {integrity: sha512-I1dXJq2ywdvTD2Cz5LYNcYLujqQ3eUxPoCjruRdfm2QBtHBY15NEeb6x5HuPM3T5S+y8S3p9fwRsieQQCjk0gg==}
+  vite-plugin-ruby@5.1.2:
+    resolution: {integrity: sha512-aIhAhq9BOVhfWGYuludgYK9ch58SQClpDVyF8WfpNsr5xr6dCw24mgpFso2KsXYONGYzX2kDt+cca54nDzkitg==}
     peerDependencies:
       vite: '>=5.0.0'
 
@@ -903,7 +903,7 @@ snapshots:
   '@nodelib/fs.walk@1.2.8':
     dependencies:
       '@nodelib/fs.scandir': 2.1.5
-      fastq: 1.19.1
+      fastq: 1.20.1
 
   '@rollup/rollup-android-arm-eabi@4.52.4':
     optional: true
@@ -1110,7 +1110,7 @@ snapshots:
       merge2: 1.4.1
       micromatch: 4.0.8
 
-  fastq@1.19.1:
+  fastq@1.20.1:
     dependencies:
       reusify: 1.1.0
 
@@ -1295,7 +1295,7 @@ snapshots:
 
   util-deprecate@1.0.2: {}
 
-  vite-plugin-ruby@5.1.1(vite@7.1.9(jiti@2.6.0)(lightningcss@1.30.1)):
+  vite-plugin-ruby@5.1.2(vite@7.1.9(jiti@2.6.0)(lightningcss@1.30.1)):
     dependencies:
       debug: 4.4.3
       fast-glob: 3.3.3
