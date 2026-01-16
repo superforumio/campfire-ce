@@ -30,13 +30,21 @@ class UsersController < ApplicationController
       end
 
       if @user.previously_new_record?
-        redeem_join_code
+        unless redeem_join_code
+          @user.destroy
+          redirect_to account_join_code_url, alert: "This invite link is no longer valid. Please request a new one.", status: :see_other
+          return
+        end
         deliver_webhooks_to_bots(@user, :created)
       end
     else
       # Simple password-based creation (like Once-Campfire)
       @user = User.create!(user_params)
-      redeem_join_code
+      unless redeem_join_code
+        @user.destroy
+        redirect_to account_join_code_url, alert: "This invite link is no longer valid. Please request a new one.", status: :see_other
+        return
+      end
     end
 
     # Always require email verification for new users
