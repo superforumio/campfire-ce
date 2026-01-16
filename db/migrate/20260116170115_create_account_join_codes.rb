@@ -2,9 +2,11 @@ class CreateAccountJoinCodes < ActiveRecord::Migration[8.2]
   def up
     create_table :account_join_codes do |t|
       t.references :account, null: false, foreign_key: true
+      t.references :user, null: true, foreign_key: true # nil = global/admin link
       t.string :code, null: false
       t.integer :usage_count, default: 0, null: false
       t.integer :usage_limit, null: true # nil = unlimited
+      t.datetime :expires_at, null: true # nil = never expires
 
       t.timestamps
     end

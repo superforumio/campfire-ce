@@ -51,12 +51,12 @@ class Account::JoinCodeTest < ActiveSupport::TestCase
     end
   end
 
-  test "reset generates new code and resets usage_count" do
+  test "regenerate_code generates new code and resets usage_count" do
     join_code = account_join_codes(:signal)
     join_code.update!(usage_count: 5)
     old_code = join_code.code
 
-    join_code.reset
+    join_code.regenerate_code
 
     assert_not_equal old_code, join_code.code
     assert_equal 0, join_code.usage_count
@@ -72,5 +72,59 @@ class Account::JoinCodeTest < ActiveSupport::TestCase
     join_code = account_join_codes(:signal)
     join_code.update!(usage_limit: 100, usage_count: 42)
     assert_equal "42/100 uses", join_code.usage_display
+  end
+
+  test "global? returns true when user_id is nil" do
+    join_code = account_join_codes(:signal)
+    assert join_code.global?
+    refute join_code.personal?
+  end
+
+  test "personal? returns true when user_id is present" do
+    join_code = account_join_codes(:signal_personal)
+    assert join_code.personal?
+    refute join_code.global?
+    assert_equal users(:david), join_code.user
+  end
+
+  test "expired? returns true when expires_at is in the past" do
+    join_code = account_join_codes(:signal)
+    join_code.update!(expires_at: 1.hour.ago)
+    assert join_code.expired?
+    refute join_code.active?
+  end
+
+  test "expired? returns false when expires_at is in the future" do
+    join_code = account_join_codes(:signal)
+    join_code.update!(expires_at: 1.hour.from_now)
+    refute join_code.expired?
+    assert join_code.active?
+  end
+
+  test "expired? returns false when expires_at is nil" do
+    join_code = account_join_codes(:signal)
+    join_code.update!(expires_at: nil)
+    refute join_code.expired?
+  end
+
+  test "personal invite sets default expiration on create" do
+    join_code = Account::JoinCode.create!(account: accounts(:signal), user: users(:david))
+    assert join_code.expires_at.present?
+    assert join_code.expires_at > Time.current
+    assert join_code.expires_at <= Account::JoinCode::DEFAULT_EXPIRATION.from_now + 1.second
+  end
+
+  test "global invite does not set default expiration" do
+    join_code = Account::JoinCode.create!(account: accounts(:signal))
+    assert_nil join_code.expires_at
+  end
+
+  test "redeem returns false when expired" do
+    join_code = account_join_codes(:signal)
+    join_code.update!(expires_at: 1.hour.ago)
+
+    assert_no_changes -> { join_code.reload.usage_count } do
+      refute join_code.redeem
+    end
   end
 end
