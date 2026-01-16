@@ -18,12 +18,18 @@ class ActiveSupport::TestCase
 
   # parallelize(workers: :number_of_processors)
 
+  # Map namespaced models to fixtures
+  set_fixture_class account_join_codes: Account::JoinCode
+
   # Setup all fixtures in test/fixtures/*.yml for all tests in alphabetical order.
   fixtures :all
 
   include SessionTestHelper, MentionTestHelper, TurboTestHelper
 
   setup do
+    # Default to password auth in tests (sign_in helper uses password)
+    ENV["AUTH_METHOD"] = "password"
+
     ActionCable.server.pubsub.clear
     ActionController::Base.send(:cache_store).clear  # Clear rate limit store
 

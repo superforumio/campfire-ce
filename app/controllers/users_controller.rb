@@ -5,7 +5,8 @@ class UsersController < ApplicationController
   require_unauthenticated_access only: %i[ new create ]
 
   before_action :set_user, only: :show
-  before_action :verify_join_code, only: %i[ new create ]
+  before_action :set_join_code, only: %i[ new create ]
+  before_action :verify_join_code_active, only: %i[ new create ]
   before_action :validate_email_param, only: :create
   before_action :start_otp_if_user_exists, only: :create, if: -> { Current.account.auth_method_value == "otp" }
 
@@ -28,10 +29,14 @@ class UsersController < ApplicationController
         return
       end
 
-      deliver_webhooks_to_bots(@user, :created) if @user.previously_new_record?
+      if @user.previously_new_record?
+        redeem_join_code
+        deliver_webhooks_to_bots(@user, :created)
+      end
     else
       # Simple password-based creation (like Once-Campfire)
       @user = User.create!(user_params)
+      redeem_join_code
     end
 
     # Always require email verification for new users
@@ -62,8 +67,17 @@ class UsersController < ApplicationController
       @user = User.find(params[:id])
     end
 
-    def verify_join_code
-      head :not_found if Current.account.join_code != params[:join_code]
+    def set_join_code
+      @join_code = Account::JoinCode.find_by(code: params[:join_code])
+      head :not_found unless @join_code
+    end
+
+    def verify_join_code_active
+      head :gone unless @join_code.active?
+    end
+
+    def redeem_join_code
+      @join_code.redeem
     end
 
     def start_otp_if_user_exists

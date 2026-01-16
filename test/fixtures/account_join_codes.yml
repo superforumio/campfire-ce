@@ -1,0 +1,7 @@
+signal:
+  account_id: <%= ActiveRecord::FixtureSet.identify(:signal) %>
+  code: CRMu-l8Ge-KB9B
+  usage_count: 0
+  usage_limit:
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
