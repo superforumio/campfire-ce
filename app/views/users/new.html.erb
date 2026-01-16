@@ -34,7 +34,7 @@
         <div class="flex justify-center gap txt-medium">
           <span class="flex align-center gap-half">
             <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#3ba55c"></span>
-            <%= Membership.connected.select(:user_id).distinct.count %> Online
+            <%= User.active.where(last_authenticated_at: 24.hours.ago..).count %> Online
           </span>
           <span>&middot;</span>
           <span><%= User.active.count %> Members</span>
