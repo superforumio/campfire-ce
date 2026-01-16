@@ -76,7 +76,7 @@ class UsersController < ApplicationController
     end
 
     def set_join_code
-      @join_code = Account::JoinCode.find_by(code: params[:join_code])
+      @join_code = Current.account.join_codes.find_by(code: params[:join_code])
       head :not_found unless @join_code
     end
 
