@@ -1,6 +1,6 @@
 GIT
   remote: https://github.com/rails/rails.git
-  revision: e69d30b0dbbd4da4caebb66c978716841a55bde2
+  revision: 85734dfb9886259e642495e2673f7dee51c3bc8a
   branch: main
   specs:
     actioncable (8.2.0.alpha)
@@ -319,7 +319,7 @@ GEM
       erb
       psych (>= 4.0.0)
       tsort
-    redis (5.4.0)
+    redis (5.4.1)
       redis-client (>= 0.22.0)
     redis-client (0.26.3)
       connection_pool
@@ -475,7 +475,7 @@ DEPENDENCIES
   rack-mini-profiler (~> 4.0)
   rails!
   rails_autolink
-  redis (= 5.4.0)
+  redis (~> 5.4)
   resend
   rqrcode
   rubocop-rails-omakase
